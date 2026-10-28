@@ -63,8 +63,8 @@ Rails.application.configure do
   # the I18n.default_locale when a translation cannot be found).
   config.i18n.fallbacks = true
 
-  # Do not dump schema after migrations.
-  config.active_record.dump_schema_after_migration = false
+  # dump schema after migrations. [Generates the structure.sql file. Just to be safe ]
+  config.active_record.dump_schema_after_migration = true
 
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [ :id ]
