@@ -33,5 +33,8 @@ module SalaryManager
       g.test_framework :rspec
       g.fixture_replacement :factory_bot, dir: "spec/factories"
     end
+
+    # Change the schema format from :ruby to :sql
+    config.active_record.schema_format = :sql
   end
 end

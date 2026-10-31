@@ -9,13 +9,13 @@
 :position_in_test: before
 :classified_sort: true
 :exclude_controllers: true
-:exclude_factories: false
-:exclude_fixtures: false
+:exclude_factories: true
+:exclude_fixtures: true
 :exclude_helpers: true
 :exclude_scaffolds: true
 :exclude_serializers: false
 :exclude_sti_subclasses: false
-:exclude_tests: false
+:exclude_tests: true
 :force: false
 :format_markdown: false
 :format_rdoc: false
@@ -29,7 +29,7 @@
 :show_check_constraints: false
 :show_unique_constraints: false
 :show_exclusion_constraints: false
-:show_enums: false
+:show_enums: true
 :show_complete_foreign_keys: false
 :show_foreign_keys: true
 :show_indexes: true

@@ -1,0 +1,27 @@
+networks:
+  default:
+    name: salary-manager-net
+
+services:
+  postgres:
+    image: postgres:16.6-alpine
+    restart: always
+    ports:
+      - "5434:5432"
+    command: ["-c", "shared_buffers=256MB", "-c", "max_locks_per_transaction=128"]
+    # Bind the Rails db directory at the same path so local tools can see it.
+    container_name: salary-manager-postgres
+    volumes:
+      - type: bind
+        source: ${PWD}/db
+        target: ${PWD}/db
+      - type: volume
+        source: postgres_data
+        target: /var/lib/postgresql/data
+    shm_size: 256M
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_USER: salary_manager
+
+volumes:
+  postgres_data:
