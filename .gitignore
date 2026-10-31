@@ -7,3 +7,9 @@
 /frontend/.vite
 
 .idea
+**/.idea/
+.vscode/
+**/.vscode/
+.solargraph.yml
+**/.solargraph.yml
+*.iml

@@ -31,3 +31,9 @@
 # Ignore key files for decrypting credentials and more.
 /config/*.key
 
+# Ignore editor and IDE files.
+.idea/
+.vscode/
+.solargraph.yml
+*.iml
+
