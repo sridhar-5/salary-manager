@@ -48,6 +48,7 @@ class Employee < ApplicationRecord
   belongs_to :manager, class_name: "Employee", optional: true
 
   has_many :direct_reports, class_name: "Employee", foreign_key: :manager_id, inverse_of: :manager, dependent: :nullify
+  has_many :compensation_records, dependent: :restrict_with_error
 
   enum :employment_status, { active: "active", terminated: "terminated" }, validate: true
 
@@ -60,6 +61,7 @@ class Employee < ApplicationRecord
   validates :termination_date, absence: true, unless: :terminated?
 
   validate :employment_level_must_apply_to_job_title
+  validate :job_title_must_belong_to_department
   validate :termination_date_not_before_hire_date
   validate :manager_cannot_be_self
 
@@ -70,6 +72,13 @@ class Employee < ApplicationRecord
     return if JobTitleLevel.exists?(job_title_id:, employment_level_id:)
 
     errors.add(:employment_level, "is not applicable to the selected job title")
+  end
+
+  def job_title_must_belong_to_department
+    return if job_title_id.blank? || department_id.blank?
+    return if job_title.department_id == department_id
+
+    errors.add(:job_title, "must belong to the selected department")
   end
 
   def termination_date_not_before_hire_date

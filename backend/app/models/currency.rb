@@ -12,6 +12,10 @@
 #
 class Currency < ApplicationRecord
   has_many :countries, dependent: :restrict_with_error
+  has_many :compensation_records, dependent: :restrict_with_error
+  has_many :salary_bands, dependent: :restrict_with_error
+  has_many :base_exchange_rates, class_name: "ExchangeRate", foreign_key: :base_currency_id, inverse_of: :base_currency, dependent: :restrict_with_error
+  has_many :quote_exchange_rates, class_name: "ExchangeRate", foreign_key: :quote_currency_id, inverse_of: :quote_currency, dependent: :restrict_with_error
 
   validates :code, presence: true, uniqueness: true, length: { is: 3 }
   validates :name, presence: true, length: { maximum: 100 }

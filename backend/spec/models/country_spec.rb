@@ -3,6 +3,7 @@ RSpec.describe Country, type: :model do
 
   it { is_expected.to belong_to(:currency) }
   it { is_expected.to have_many(:employees).dependent(:restrict_with_error) }
+  it { is_expected.to have_many(:salary_bands).dependent(:restrict_with_error) }
 
   it { is_expected.to validate_presence_of(:name) }
   it { is_expected.to validate_length_of(:name).is_at_most(100) }

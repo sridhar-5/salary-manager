@@ -19,6 +19,7 @@
 class Country < ApplicationRecord
   belongs_to :currency
   has_many :employees, dependent: :restrict_with_error
+  has_many :salary_bands, dependent: :restrict_with_error
 
   validates :name, presence: true, length: { maximum: 100 }
   validates :iso_code, presence: true, uniqueness: true, length: { is: 2 }

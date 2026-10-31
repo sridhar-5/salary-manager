@@ -5,8 +5,8 @@ FactoryBot.define do
     sequence(:last_name) { |n| "Lovelace#{n}" }
     sequence(:email) { |n| "employee#{n}@example.com" }
     country
-    department
     job_title
+    department { job_title.department }
     employment_level
     employment_status { :active }
     hire_date { Date.current }

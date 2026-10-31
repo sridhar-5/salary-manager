@@ -13,7 +13,9 @@
 #  index_departments_on_name  (name) UNIQUE
 #
 class Department < ApplicationRecord
+  has_many :job_titles, dependent: :restrict_with_error
   has_many :employees, dependent: :restrict_with_error
+  has_many :salary_bands, dependent: :restrict_with_error
 
   validates :name, presence: true, uniqueness: true, length: { maximum: 100 }
 end

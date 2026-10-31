@@ -7,6 +7,7 @@ RSpec.describe Employee, type: :model do
   it { is_expected.to belong_to(:employment_level) }
   it { is_expected.to belong_to(:manager).class_name("Employee").optional }
   it { is_expected.to have_many(:direct_reports).class_name("Employee").dependent(:nullify) }
+  it { is_expected.to have_many(:compensation_records).dependent(:restrict_with_error) }
 
   it { is_expected.to define_enum_for(:employment_status).with_values(active: "active", terminated: "terminated").backed_by_column_of_type(:enum) }
 
@@ -41,6 +42,14 @@ RSpec.describe Employee, type: :model do
 
       expect(employee).not_to be_valid
       expect(employee.errors[:employment_level]).to include("is not applicable to the selected job title")
+    end
+
+    it "is invalid when the job title belongs to another department" do
+      employee = create(:employee)
+      employee.department = create(:department)
+
+      expect(employee).not_to be_valid
+      expect(employee.errors[:job_title]).to include("must belong to the selected department")
     end
   end
 

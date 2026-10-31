@@ -17,22 +17,24 @@ Country.find_or_create_by!(iso_code: "GB") do |country|
   country.currency = gbp
 end
 
-[
+departments = [
   [ "Engineering", "Builds and maintains product software." ],
   [ "People", "Owns hiring, performance, and employee experience." ],
   [ "Finance", "Manages payroll, planning, and compensation." ]
-].each do |name, description|
-  Department.find_or_create_by!(name:) { |department| department.description = description }
+].to_h do |name, description|
+  [ name, Department.find_or_create_by!(name:) { |department| department.description = description } ]
 end
 
 job_titles = [
-  [ "Software Engineer", "Designs and ships product features." ],
-  [ "Engineering Manager", "Leads an engineering team and delivery." ],
-  [ "Product Manager", "Sets product direction and priorities." ],
-  [ "People Partner", "Partners with teams on hiring and performance." ],
-  [ "Finance Analyst", "Supports compensation and financial planning." ]
-].to_h do |title, description|
-  [ title, JobTitle.find_or_create_by!(title:) { |job_title| job_title.description = description } ]
+  [ "Software Engineer", "Designs and ships product features.", "Engineering" ],
+  [ "Engineering Manager", "Leads an engineering team and delivery.", "Engineering" ],
+  [ "Product Manager", "Sets product direction and priorities.", "Engineering" ],
+  [ "People Partner", "Partners with teams on hiring and performance.", "People" ],
+  [ "Finance Analyst", "Supports compensation and financial planning.", "Finance" ]
+].to_h do |title, description, department_name|
+  department = departments.fetch(department_name)
+  job_title = JobTitle.find_or_create_by!(title:, department:) { |record| record.description = description }
+  [ title, job_title ]
 end
 
 employment_levels = [
@@ -60,4 +62,24 @@ end
       employment_level: employment_levels.fetch(level_name)
     )
   end
+end
+
+[
+  [ "super_admin", "Manages admins, reference data, and compensation." ],
+  [ "compensation_admin", "Manages employees, compensation, salary bands, and exchange rates." ],
+  [ "viewer", "Reads operational and reference data." ]
+].each do |name, description|
+  Role.find_or_create_by!(name:) { |role| role.description = description }
+end
+
+if Rails.env.development?
+  admin = AdminUser.find_or_initialize_by(email: "admin@example.com")
+  if admin.new_record?
+    admin.password = ENV.fetch("ADMIN_PASSWORD", "password")
+    admin.password_confirmation = admin.password
+    admin.save!
+  end
+
+  super_admin = Role.find_by!(name: "super_admin")
+  admin.roles << super_admin unless admin.has_role?(:super_admin)
 end
