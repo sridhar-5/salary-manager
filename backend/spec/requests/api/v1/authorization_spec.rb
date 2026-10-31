@@ -12,7 +12,7 @@ RSpec.describe "Domain authorization", type: :request do
   it "lets a viewer read employees and forbids creating them" do
     create(:employee)
 
-    get api_v1_employees_path, headers: auth_headers_for(viewer)
+    get api_v1_employees_path, params: { page: 1 }, headers: auth_headers_for(viewer)
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body["employees"].size).to eq(1)
 

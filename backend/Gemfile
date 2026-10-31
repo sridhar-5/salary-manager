@@ -35,6 +35,9 @@ gem "cancancan"
 # Versioning for compensation and other auditable models
 gem "paper_trail"
 
+gem "kaminari"
+gem "filterrific"
+
 group :development do
   gem "annotaterb"
 end
@@ -52,6 +55,7 @@ group :development, :test do
   gem "pry-byebug"
   gem "rspec-rails", "~> 8.0"
   gem "factory_bot_rails"
+  gem "faker", require: false
 
   # Omakase Ruby styling [https://github.com/rails/rubocop-rails-omakase/]
   gem "rubocop-rails-omakase", require: false
@@ -59,5 +63,4 @@ end
 
 group :test do
   gem "shoulda-matchers", "~> 6.0"
-  gem "faker"
 end

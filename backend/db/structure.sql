@@ -579,18 +579,10 @@ CREATE TABLE public.versions (
     item_id bigint NOT NULL,
     event character varying NOT NULL,
     whodunnit character varying,
-    user_id bigint,
     object jsonb,
     object_changes jsonb,
     created_at timestamp(6) without time zone
 );
-
-
---
--- Name: COLUMN versions.user_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.versions.user_id IS 'FK to Devise users.id';
 
 
 --

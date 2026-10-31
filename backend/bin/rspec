@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+if [ "$1" = "--record" ];then
+shift;
+DEPRECATION_BEHAVIOR='record' bundle exec rspec "$@"
+else
+  bundle exec rspec "$@"
+fi

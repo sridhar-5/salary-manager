@@ -52,6 +52,106 @@ class Employee < ApplicationRecord
 
   enum :employment_status, { active: "active", terminated: "terminated" }, validate: true
 
+  include EmployeeReportingPay
+  extend Filterrific::ActiveRecordExtension
+
+  EMPLOYMENT_STATUSES = %w[active terminated].freeze
+
+  filterrific(
+    available_filters: %i[
+      search_query
+      with_country_id
+      with_department_id
+      with_job_title_id
+      with_employment_level_id
+      with_employment_status
+      with_salary_min
+      with_salary_max
+    ]
+  )
+
+  def self.search_query(term)
+    sanitized = term.to_s.strip
+    return all if sanitized.blank?
+
+    like = "%#{sanitize_sql_like(sanitized)}%"
+    where(
+      <<~SQL.squish,
+        employees.first_name ILIKE :term
+        OR employees.last_name ILIKE :term
+        OR employees.employee_number ILIKE :term
+        OR (employees.first_name || ' ' || employees.last_name) ILIKE :term
+      SQL
+      term: like
+    )
+  end
+
+  def self.with_country_id(country_id)
+    identifier = integer_identifier(country_id)
+    return all if identifier.nil?
+
+    where(country_id: identifier)
+  end
+
+  def self.with_department_id(department_id)
+    identifier = integer_identifier(department_id)
+    return all if identifier.nil?
+
+    where(department_id: identifier)
+  end
+
+  def self.with_job_title_id(job_title_id)
+    identifier = integer_identifier(job_title_id)
+    return all if identifier.nil?
+
+    where(job_title_id: identifier)
+  end
+
+  def self.with_employment_level_id(employment_level_id)
+    identifier = integer_identifier(employment_level_id)
+    return all if identifier.nil?
+
+    where(employment_level_id: identifier)
+  end
+
+  def self.with_employment_status(status)
+    value = status.to_s
+    return all unless EMPLOYMENT_STATUSES.include?(value)
+
+    where(employment_status: value)
+  end
+
+  def self.with_salary_min(amount)
+    decimal = decimal_amount(amount)
+    return all if decimal.nil?
+
+    where("reporting_amount >= ?", decimal)
+  end
+
+  def self.with_salary_max(amount)
+    decimal = decimal_amount(amount)
+    return all if decimal.nil?
+
+    where("reporting_amount <= ?", decimal)
+  end
+
+  def self.integer_identifier(value)
+    return nil if value.blank?
+
+    Integer(value, 10)
+  rescue ArgumentError, TypeError
+    nil
+  end
+
+  def self.decimal_amount(value)
+    return nil if value.blank?
+
+    decimal = BigDecimal(value.to_s)
+    decimal.finite? ? decimal : nil
+  rescue ArgumentError
+    nil
+  end
+
   validates :employee_number, presence: true, uniqueness: true, length: { maximum: 50 }
   validates :first_name, presence: true, length: { maximum: 100 }
   validates :last_name, presence: true, length: { maximum: 100 }

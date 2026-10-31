@@ -1,4 +1,4 @@
-class Ability
+class AdminUserAbility
   include CanCan::Ability
 
   REFERENCE_MODELS = [

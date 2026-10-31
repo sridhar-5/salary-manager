@@ -72,14 +72,17 @@ end
   Role.find_or_create_by!(name:) { |role| role.description = description }
 end
 
-if Rails.env.development?
-  admin = AdminUser.find_or_initialize_by(email: "admin@example.com")
-  if admin.new_record?
-    admin.password = ENV.fetch("ADMIN_PASSWORD", "password")
-    admin.password_confirmation = admin.password
-    admin.save!
-  end
+require_relative "seeds/demo_data"
 
-  super_admin = Role.find_by!(name: "super_admin")
-  admin.roles << super_admin unless admin.has_role?(:super_admin)
+admin = AdminUser.find_or_initialize_by(email: "admin@example.com")
+if admin.new_record?
+  admin.password = ENV.fetch("ADMIN_PASSWORD", "password")
+  admin.password_confirmation = admin.password
+  admin.save!
 end
+
+super_admin = Role.find_by!(name: "super_admin")
+admin.roles << super_admin unless admin.has_role?(:super_admin)
+
+DemoData.seed!(admin)
+

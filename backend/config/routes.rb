@@ -17,6 +17,7 @@ Rails.application.routes.draw do
       resources :employees do
         resources :compensation_records, only: %i[index show create update destroy]
       end
+      resource :compensation_summary, only: :show
       resources :salary_bands
       resources :exchange_rates
     end

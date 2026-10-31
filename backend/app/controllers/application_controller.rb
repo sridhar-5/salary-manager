@@ -19,7 +19,7 @@ class ApplicationController < ActionController::API
   private
 
   def current_ability
-    @current_ability ||= Ability.new(current_admin_user)
+    @current_ability ||= AdminUserAbility.new(current_admin_user)
   end
 
   def set_paper_trail_whodunnit

@@ -7,7 +7,7 @@
 
 cors_origins = ENV["CORS_ORIGINS"].to_s.split(",").map(&:strip).reject(&:empty?)
 if cors_origins.empty? && Rails.env.local?
-  cors_origins = [ "http://localhost:3000", "http://localhost:5173" ]
+  cors_origins = %w[http://localhost:3000 http://localhost:5173 http://127.0.0.1:5173]
 end
 
 if cors_origins.any?
