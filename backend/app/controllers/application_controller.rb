@@ -18,14 +18,18 @@ class ApplicationController < ActionController::API
 
   private
 
-  def current_ability
-    @current_ability ||= AdminUserAbility.new(current_admin_user)
-  end
+    def current_ability
+      @current_ability ||= AdminUserAbility.new(current_admin_user)
+    end
 
-  def set_paper_trail_whodunnit
-    admin_user = warden.user(:admin_user)
-    return if admin_user.blank?
+    def set_paper_trail_whodunnit
+      admin_user = warden.user(:admin_user)
+      return if admin_user.blank?
 
-    PaperTrail.request.whodunnit = admin_user.id.to_s
-  end
+      PaperTrail.request.whodunnit = admin_user.id.to_s
+    end
+
+    def render_errors(model)
+      render json: { errors: model.errors.as_json }, status: :unprocessable_entity
+    end
 end

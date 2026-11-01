@@ -1,14 +1,12 @@
 module API
   module V1
     class EmployeesSerializer
-      def initialize(employee, reporting_currency:, include_manager: false)
+      def initialize(employee)
         @employee = employee
-        @reporting_currency = reporting_currency
-        @include_manager = include_manager
       end
 
       def serialize
-        payload = {
+        {
           id: employee.id,
           employee_number: employee.employee_number,
           first_name: employee.first_name,
@@ -24,7 +22,7 @@ module API
           manager_id: employee.manager_id,
           created_at: employee.created_at,
           updated_at: employee.updated_at,
-          reporting_currency: MoneyFormat.currency(reporting_currency),
+          reporting_currency: reporting_currency_payload,
           country: {
             id: employee.country_id,
             name: employee.country.name,
@@ -37,31 +35,80 @@ module API
             name: employee.employment_level.name,
             rank: employee.employment_level.rank
           },
-          current_compensation: compensation_json
+          current_compensation: compensation_json,
+          manager: manager_json
         }
-        payload[:manager] = manager_json if include_manager
-        payload
       end
 
       private
 
-      attr_reader :employee, :reporting_currency, :include_manager
+      attr_reader :employee
 
       def compensation_json
-        compensation_id = attribute("compensation_id")
-        return nil if compensation_id.blank?
+        record = current_compensation_record
+        return nil if record.blank?
 
         {
-          id: compensation_id.to_i,
-          annual_salary: MoneyFormat.format_money(attribute("annual_salary")),
+          id: record.id,
+          annual_salary: MoneyFormat.format_money(record.annual_salary),
           currency: {
-            id: attribute("compensation_currency_id").to_i,
-            code: attribute("currency_code")
+            id: record.currency_id,
+            code: record.currency.code
           },
-          effective_from: attribute("compensation_effective_from"),
-          effective_to: attribute("compensation_effective_to"),
-          reporting_amount: MoneyFormat.format_money(attribute("reporting_amount"))
+          effective_from: record.effective_from,
+          effective_to: record.effective_to,
+          reporting_amount: MoneyFormat.format_money(converted_amount(record))
         }
+      end
+
+      def current_compensation_record
+        employee.compensation_records
+          .covering(Date.current)
+          .includes(:currency)
+          .order(effective_from: :desc, id: :desc)
+          .first
+      end
+
+      def converted_amount(record)
+        currency = default_reporting_currency
+        return nil if currency.blank?
+        return record.annual_salary if record.currency_id == currency.id
+
+        rate = exchange_multiplier(record.currency_id, currency.id)
+        return nil if rate.nil?
+
+        (record.annual_salary * rate).round(4)
+      end
+
+      def exchange_multiplier(from_id, to_id)
+        direct = ExchangeRate.where(base_currency_id: from_id, quote_currency_id: to_id)
+          .where(effective_date: ..Date.current)
+          .order(effective_date: :desc, id: :desc)
+          .pick(:rate)
+        return direct if direct
+
+        inverse = ExchangeRate.where(base_currency_id: to_id, quote_currency_id: from_id)
+          .where(effective_date: ..Date.current)
+          .order(effective_date: :desc, id: :desc)
+          .pick(:rate)
+        return nil if inverse.nil? || inverse.zero?
+
+        1 / inverse
+      end
+
+      def reporting_currency_payload
+        record = current_compensation_record
+        {
+          id: record.currency_id,
+          code: record.currency&.code,
+          name: record.currency&.name
+        } if record
+
+        MoneyFormat.currency(default_reporting_currency)
+      end
+
+      def default_reporting_currency
+        @default_reporting_currency ||= Currency.find_by(code: "USD") || Currency.order(:id).first
       end
 
       def manager_json
@@ -74,10 +121,6 @@ module API
           last_name: manager.last_name,
           employee_number: manager.employee_number
         }
-      end
-
-      def attribute(name)
-        employee.read_attribute(name)
       end
     end
   end

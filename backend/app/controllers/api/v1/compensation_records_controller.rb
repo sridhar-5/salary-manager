@@ -1,4 +1,4 @@
-class API::V1::CompensationRecordsController < API::V1::ResourcesController
+class API::V1::CompensationRecordsController < ApplicationController
   before_action :set_employee
   load_and_authorize_resource through: :employee
 
@@ -13,23 +13,43 @@ class API::V1::CompensationRecordsController < API::V1::ResourcesController
     }
   end
 
-  def create
-    CompensationRecords::Create.new(record, created_by: current_admin_user).call
+  def show
+    render json: { compensation_record: @compensation_record.as_json }
+  end
 
-    if record.persisted?
-      render json: { compensation_record: API::V1::CompensationRecordSerializer.new(record).as_json }, status: :created
+  def create
+    CompensationRecords::Create.new(@compensation_record, created_by: current_admin_user).call
+
+    if @compensation_record.persisted?
+      render json: { compensation_record: API::V1::CompensationRecordSerializer.new(@compensation_record).as_json }, status: :created
     else
-      render_errors(record)
+      render_errors(@compensation_record)
+    end
+  end
+
+  def update
+    if @compensation_record.update(compensation_record_params)
+      render json: { compensation_record: @compensation_record.as_json }
+    else
+      render_errors(@compensation_record)
+    end
+  end
+
+  def destroy
+    if @compensation_record.destroy
+      head :no_content
+    else
+      render_errors(@compensation_record)
     end
   end
 
   private
 
-  def set_employee
-    @employee = Employee.find(params[:employee_id])
-  end
+    def set_employee
+      @employee = Employee.find(params[:employee_id])
+    end
 
-  def compensation_record_params
-    params.require(:compensation_record).permit(:annual_salary, :currency_id, :effective_from, :effective_to)
-  end
+    def compensation_record_params
+      params.require(:compensation_record).permit(:annual_salary, :currency_id, :effective_from, :effective_to)
+    end
 end

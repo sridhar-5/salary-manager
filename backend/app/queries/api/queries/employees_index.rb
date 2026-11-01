@@ -1,28 +1,39 @@
 module API
   module Queries
-    class EmployeesIndex < Base
-      ASSOCIATIONS = %i[country department job_title employment_level].freeze
+    class EmployeesIndex
+      DEFAULT_LIMIT = 10
+      DEFAULT_PAGE = 1
+      PRELOADS = %i[country department job_title employment_level manager].freeze
+
+      attr_reader :records, :unconverted_count
 
       def initialize(params, ability:)
+        @params = params
         @ability = ability
-        super(params)
+        @page = params[:page].present? ? params[:page].to_i : DEFAULT_PAGE
+        @limit = params[:limit].present? ? params[:limit].to_i : DEFAULT_LIMIT
+        @search = params[:search].to_s.strip
+        @filters = (params[:filters] || {}).to_h.symbolize_keys
       end
 
-      def self.find_record(employee, ability:, params:)
-        currency = reporting_currency_for(params)
-        record = Employee.accessible_by(ability).where(id: employee.id)
-          .with_reporting_pay(currency: currency, on: Date.current)
-          .first || employee
-        ActiveRecord::Associations::Preloader.new(
-          records: [ record ],
-          associations: ASSOCIATIONS + %i[manager]
-        ).call
-        record
+      def call
+        relation = Employee.accessible_by(@ability)
+        relation = apply_search(relation)
+        relation = apply_attribute_filters(relation)
+        relation = with_reporting_pay(relation)
+        @unconverted_count = relation.where("reporting_amount IS NULL").count
+        relation = apply_salary_filters(relation)
+        @records = relation.order(last_name: :asc, first_name: :asc, id: :asc).preload(*PRELOADS).page(@page).per(@limit)
+        self
+      end
+
+      def reporting_currency
+        @reporting_currency ||= self.class.reporting_currency_for(@params)
       end
 
       def self.reporting_currency_for(params)
         filters = (params[:filters] || {}).to_h.symbolize_keys
-        if (identifier = Employee.integer_identifier(filters[:with_reporting_currency_id]))
+        if (identifier = integer_identifier(filters[:with_reporting_currency_id]))
           found = Currency.find_by(id: identifier)
           return found if found
         end
@@ -30,109 +41,131 @@ module API
         Currency.find_by(code: "USD") || Currency.order(:id).first
       end
 
-      def reporting_currency
-        @reporting_currency ||= self.class.reporting_currency_for(params)
-      end
+      def self.integer_identifier(value)
+        return nil if value.blank?
 
-      def unconverted_count
-        attribute_scope.where("reporting_amount IS NULL").count
-      end
-
-      def summary_filters
-        {
-          q: search.presence,
-          country_id: Employee.integer_identifier(filter_params[:with_country_id]),
-          department_id: Employee.integer_identifier(filter_params[:with_department_id]),
-          job_title_id: Employee.integer_identifier(filter_params[:with_job_title_id]),
-          employment_level_id: Employee.integer_identifier(filter_params[:with_employment_level_id]),
-          employment_status: summary_status,
-          salary_min: summary_decimal(:with_salary_min),
-          salary_max: summary_decimal(:with_salary_max),
-          reporting_currency_id: reporting_currency&.id
-        }
+        Integer(value, 10)
+      rescue ArgumentError, TypeError
+        nil
       end
 
       private
 
-      attr_reader :ability
+      def apply_search(relation)
+        return relation if @search.blank?
 
-      def default_scope
-        Employee.accessible_by(ability)
-          .with_reporting_pay(currency: reporting_currency, on: Date.current)
-          .preload(*ASSOCIATIONS)
+        like = "%#{Employee.sanitize_sql_like(@search)}%"
+        relation.where(
+          <<~SQL.squish,
+            employees.first_name ILIKE :term
+            OR employees.last_name ILIKE :term
+            OR employees.employee_number ILIKE :term
+            OR (employees.first_name || ' ' || employees.last_name) ILIKE :term
+          SQL
+          term: like
+        )
       end
 
-      def search_records
-        return scope unless search.present?
-
-        @scope = scope.search_query(search)
+      def apply_attribute_filters(relation)
+        relation = filter_id(relation, :country_id, @filters[:with_country_id])
+        relation = filter_id(relation, :department_id, @filters[:with_department_id])
+        relation = filter_id(relation, :job_title_id, @filters[:with_job_title_id])
+        relation = filter_id(relation, :employment_level_id, @filters[:with_employment_level_id])
+        filter_status(relation)
       end
 
-      def filter_records
-        @scope = Filters.filter(filter_params: filter_params, scope: scope, names: Filters::ATTRIBUTE_NAMES)
-        @attribute_scope = scope
-        @scope = Filters.filter(filter_params: filter_params, scope: scope, names: Filters::SALARY_NAMES)
+      def filter_id(relation, column, value)
+        identifier = self.class.integer_identifier(value)
+        return relation if identifier.nil?
+
+        relation.where(column => identifier)
       end
 
-      def sort_records
-        @scope = scope.order(last_name: :asc, first_name: :asc, id: :asc)
+      def filter_status(relation)
+        status = @filters[:with_employment_status].to_s
+        return relation unless Employee::EMPLOYMENT_STATUSES.include?(status)
+
+        relation.where(employment_status: status)
       end
 
-      def filter_params
-        (filters || {}).to_h.symbolize_keys
+      def apply_salary_filters(relation)
+        minimum = decimal_amount(@filters[:with_salary_min])
+        maximum = decimal_amount(@filters[:with_salary_max])
+        relation = relation.where("reporting_amount >= ?", minimum) if minimum
+        relation = relation.where("reporting_amount <= ?", maximum) if maximum
+        relation
       end
 
-      def attribute_scope
-        @attribute_scope || scope
+      def decimal_amount(value)
+        return nil if value.blank?
+
+        decimal = BigDecimal(value.to_s)
+        decimal.finite? ? decimal : nil
+      rescue ArgumentError
+        nil
       end
 
-      def summary_status
-        status = filter_params[:with_employment_status].to_s
-        Employee::EMPLOYMENT_STATUSES.include?(status) ? status : nil
+      def with_reporting_pay(relation, on: Date.current)
+        currency = reporting_currency
+        inner = relation.joins(reporting_pay_join(currency, on)).select(reporting_pay_columns(currency))
+        relation.unscope(:joins, :select).from(inner, :employees)
       end
 
-      def summary_decimal(key)
-        Employee.decimal_amount(filter_params[key])&.to_s("F")
+      def reporting_pay_join(currency, on)
+        pay = CompensationRecord.latest_per_employee(on).to_sql
+        fx = sanitize_sql([ <<~SQL.squish, { reporting_currency_id: currency&.id, as_of: on } ])
+          LEFT JOIN LATERAL (
+            SELECT CASE
+              WHEN er.base_currency_id = current_pay.currency_id AND er.quote_currency_id = :reporting_currency_id THEN er.rate
+              WHEN er.base_currency_id = :reporting_currency_id AND er.quote_currency_id = current_pay.currency_id THEN (1::numeric / er.rate)
+            END AS multiplier
+            FROM exchange_rates er
+            WHERE current_pay.id IS NOT NULL
+              AND :reporting_currency_id IS NOT NULL
+              AND current_pay.currency_id <> :reporting_currency_id
+              AND er.effective_date <= :as_of
+              AND (
+                (er.base_currency_id = current_pay.currency_id AND er.quote_currency_id = :reporting_currency_id)
+                OR (er.base_currency_id = :reporting_currency_id AND er.quote_currency_id = current_pay.currency_id)
+              )
+            ORDER BY er.effective_date DESC, er.id DESC
+            LIMIT 1
+          ) fx ON TRUE
+        SQL
+
+        "LEFT JOIN (#{pay}) current_pay ON current_pay.employee_id = employees.id #{fx}"
       end
 
-      class Filters
-        ATTRIBUTE_NAMES = %i[
-          with_country_id
-          with_department_id
-          with_job_title_id
-          with_employment_level_id
-          with_employment_status
-        ].freeze
-        SALARY_NAMES = %i[
-          with_salary_min
-          with_salary_max
-        ].freeze
-        NAMES = (ATTRIBUTE_NAMES + SALARY_NAMES).freeze
+      def reporting_pay_columns(currency)
+        amount = sanitize_sql([ <<~SQL.squish, { reporting_currency_id: currency&.id } ])
+          CASE
+            WHEN current_pay.id IS NULL THEN NULL
+            WHEN current_pay.currency_id = :reporting_currency_id THEN current_pay.annual_salary
+            ELSE ROUND(current_pay.annual_salary * fx.multiplier, 4)
+          END AS reporting_amount
+        SQL
+        reporting_currency_columns = sanitize_sql([
+          "?::bigint AS reporting_currency_id, ?::varchar AS reporting_currency_code, ?::varchar AS reporting_currency_name",
+          currency&.id,
+          currency&.code,
+          currency&.name
+        ])
 
-        class << self
-          def filter(filter_params:, scope:, names: NAMES)
-            names.each do |filter_name|
-              scope = new(
-                filter: filter_name,
-                value: filter_params[filter_name],
-                scope: scope
-              ).filter
-            end
-            scope
-          end
-        end
+        [
+          "employees.*",
+          "current_pay.id AS compensation_id",
+          "current_pay.annual_salary AS annual_salary",
+          "current_pay.currency_id AS compensation_currency_id",
+          "current_pay.currency_code AS currency_code",
+          "current_pay.effective_from AS compensation_effective_from",
+          "current_pay.effective_to AS compensation_effective_to",
+          amount,
+          reporting_currency_columns
+        ]
+      end
 
-        def initialize(filter:, value:, scope:)
-          @filter = filter
-          @value = value
-          @scope = scope
-        end
-
-        def filter
-          return @scope unless @value.present?
-
-          @scope.public_send(@filter, @value)
-        end
+      def sanitize_sql(array)
+        Employee.send(:sanitize_sql_array, array)
       end
     end
   end

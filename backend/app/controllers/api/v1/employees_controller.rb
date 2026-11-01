@@ -1,4 +1,4 @@
-class API::V1::EmployeesController < API::V1::ResourcesController
+class API::V1::EmployeesController < ApplicationController
   include API::EmployeeListParams
 
   load_and_authorize_resource except: :index
@@ -11,7 +11,7 @@ class API::V1::EmployeesController < API::V1::ResourcesController
     employees = query.records
 
     render json: {
-      employees: employees.map { |employee| employee_json(employee, query.reporting_currency) },
+      employees: employees.map { |employee| API::V1::EmployeesSerializer.new(employee).serialize },
       meta: {
         page: employees.current_page,
         per_page: employees.limit_value,
@@ -23,27 +23,41 @@ class API::V1::EmployeesController < API::V1::ResourcesController
     }
   end
 
+  def show
+    render json: { employee: API::V1::EmployeesSerializer.new(@employee).serialize }
+  end
+
+  def create
+    if @employee.save
+      render json: { employee: API::V1::EmployeesSerializer.new(@employee).serialize }, status: :created
+    else
+      render_errors(@employee)
+    end
+  end
+
+  def update
+    if @employee.update(employee_params)
+      render json: { employee: API::V1::EmployeesSerializer.new(@employee).serialize }
+    else
+      render_errors(@employee)
+    end
+  end
+
+  def destroy
+    if @employee.destroy
+      head :no_content
+    else
+      render_errors(@employee)
+    end
+  end
+
   private
 
-  def serialize(item)
-    search_params = employee_search_params
-    record = API::Queries::EmployeesIndex.find_record(item, ability: current_ability, params: search_params)
-    employee_json(
-      record,
-      API::Queries::EmployeesIndex.reporting_currency_for(search_params),
-      include_manager: true
-    )
-  end
-
-  def employee_json(employee, reporting_currency, include_manager: false)
-    API::V1::EmployeesSerializer.new(employee, reporting_currency:, include_manager:).serialize
-  end
-
-  def employee_params
-    params.require(:employee).permit(
-      :employee_number, :first_name, :last_name, :email,
-      :country_id, :department_id, :job_title_id, :employment_level_id,
-      :manager_id, :employment_status, :hire_date, :termination_date
-    )
-  end
+    def employee_params
+      params.require(:employee).permit(
+        :employee_number, :first_name, :last_name, :email,
+        :country_id, :department_id, :job_title_id, :employment_level_id,
+        :manager_id, :employment_status, :hire_date, :termination_date
+      )
+    end
 end
