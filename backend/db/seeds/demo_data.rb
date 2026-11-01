@@ -13,10 +13,52 @@ module DemoData
   LEVEL_BASE_USD = { 1 => 70_000, 2 => 95_000, 3 => 130_000, 4 => 170_000, 5 => 210_000 }.freeze
   CURRENCY_FACTOR = { "USD" => BigDecimal("1"), "INR" => BigDecimal("83"), "GBP" => BigDecimal("0.78") }.freeze
 
+  PAYSLIP_MONTHS = 6
+  DEDUCTION_RATE = "0.20"
+
   def self.seed!(admin)
     seed_exchange_rates
     seed_salary_bands
     seed_employees(admin)
+    seed_payslips
+  end
+
+  def self.seed_payslips
+    lookback = PAYSLIP_MONTHS - 1
+    now = Payslip.connection.quote(Time.current)
+    Payslip.connection.execute(<<~SQL)
+      INSERT INTO payslips (
+        employee_id,
+        currency_id,
+        payslip_number,
+        period_start,
+        period_end,
+        pay_date,
+        gross_pay,
+        deductions,
+        net_pay,
+        status,
+        created_at,
+        updated_at
+      )
+      SELECT
+        employee.id,
+        pay.currency_id,
+        'PS-' || employee.id::text || '-' || to_char(periods.month_start, 'YYYYMM'),
+        periods.month_start::date,
+        (periods.month_start + INTERVAL '1 month' - INTERVAL '1 day')::date,
+        (periods.month_start + INTERVAL '1 month' - INTERVAL '1 day')::date,
+        ROUND(pay.annual_salary / 12, 4),
+        ROUND(pay.annual_salary / 12 * #{DEDUCTION_RATE}, 4),
+        ROUND(pay.annual_salary / 12, 4) - ROUND(pay.annual_salary / 12 * #{DEDUCTION_RATE}, 4),
+        'paid',
+        #{now},
+        #{now}
+      FROM employees AS employee
+      CROSS JOIN generate_series(
+        date_trunc('month', CURRENT_DATE) - INTERVAL '#{lookback} months',
+        date_trunc('month', CURRENT_DATE),
+
   end
 
   def self.seed_exchange_rates

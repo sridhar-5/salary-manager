@@ -36,6 +36,7 @@ module API
             rank: employee.employment_level.rank
           },
           current_compensation: compensation_json,
+          payslips: payslips_json,
           manager: manager_json
         }
       end
@@ -59,6 +60,18 @@ module API
           effective_to: record.effective_to,
           reporting_amount: MoneyFormat.format_money(converted_amount(record))
         }
+      end
+
+      def payslips_json
+        ordered_payslips.map { |payslip| PayslipsSerializer.new(payslip).serialize }
+      end
+
+      def ordered_payslips
+        if employee.payslips.loaded?
+          employee.payslips.sort_by { |payslip| [ payslip.pay_date, payslip.id ] }.reverse
+        else
+          employee.payslips.includes(:currency).newest_first
+        end
       end
 
       def current_compensation_record

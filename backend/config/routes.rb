@@ -16,6 +16,11 @@ Rails.application.routes.draw do
       resources :job_title_levels
       resources :employees do
         resources :compensation_records, only: %i[index show create update destroy]
+        resources :payslips, only: :index do
+          collection do
+            post :generate
+          end
+        end
       end
       resources :salary_bands
       resources :exchange_rates

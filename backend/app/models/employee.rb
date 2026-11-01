@@ -49,6 +49,7 @@ class Employee < ApplicationRecord
 
   has_many :direct_reports, class_name: "Employee", foreign_key: :manager_id, inverse_of: :manager, dependent: :nullify
   has_many :compensation_records, dependent: :restrict_with_error
+  has_many :payslips, dependent: :restrict_with_error
 
   enum :employment_status, { active: "active", terminated: "terminated" }, validate: true
 

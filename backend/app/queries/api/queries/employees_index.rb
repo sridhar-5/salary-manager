@@ -3,7 +3,14 @@ module API
     class EmployeesIndex
       DEFAULT_LIMIT = 10
       DEFAULT_PAGE = 1
-      PRELOADS = %i[country department job_title employment_level manager].freeze
+      PRELOADS = [
+        :country,
+        :department,
+        :job_title,
+        :employment_level,
+        :manager,
+        { payslips: :currency }
+      ].freeze
 
       attr_reader :records, :unconverted_count
 

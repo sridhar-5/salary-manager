@@ -13,8 +13,10 @@ RSpec.describe AdminUserAbility, type: :model do
     ability = AdminUserAbility.new(viewer)
 
     expect(ability).to be_able_to(:read, Employee)
+    expect(ability).to be_able_to(:read, Payslip)
     expect(ability).to be_able_to(:read, Country)
     expect(ability).not_to be_able_to(:create, Employee)
+    expect(ability).not_to be_able_to(:create, Payslip)
     expect(ability).not_to be_able_to(:create, Country)
     expect(ability).not_to be_able_to(:read, Role.new)
     expect(ability).to be_able_to(:read, viewer)
@@ -27,6 +29,7 @@ RSpec.describe AdminUserAbility, type: :model do
 
     expect(ability).to be_able_to(:manage, Employee)
     expect(ability).to be_able_to(:manage, CompensationRecord)
+    expect(ability).to be_able_to(:manage, Payslip)
     expect(ability).to be_able_to(:read, Country)
     expect(ability).not_to be_able_to(:create, Country)
     expect(ability).not_to be_able_to(:read, Role.new)

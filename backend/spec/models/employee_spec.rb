@@ -8,6 +8,7 @@ RSpec.describe Employee, type: :model do
   it { is_expected.to belong_to(:manager).class_name("Employee").optional }
   it { is_expected.to have_many(:direct_reports).class_name("Employee").dependent(:nullify) }
   it { is_expected.to have_many(:compensation_records).dependent(:restrict_with_error) }
+  it { is_expected.to have_many(:payslips).dependent(:restrict_with_error) }
 
   it { is_expected.to define_enum_for(:employment_status).with_values(active: "active", terminated: "terminated").backed_by_column_of_type(:enum) }
 

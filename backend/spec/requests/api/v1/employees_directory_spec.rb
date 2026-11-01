@@ -113,6 +113,63 @@ RSpec.describe "Employee directory", type: :request do
     expect(response.parsed_body["meta"]["total_pages"]).to eq(2)
   end
 
+  it "lists the employee's payslips newest first" do
+    employee = create_paid_employee(
+      country: united_states,
+      job_title: engineer,
+      salary: 120_000,
+      last_name: "Paid"
+    )
+    employee.update!(hire_date: Date.new(2024, 1, 1))
+    older = create(
+      :payslip,
+      employee:,
+      payslip_number: "PS-OLDER",
+      period_start: Date.new(2026, 9, 1),
+      period_end: Date.new(2026, 9, 30),
+      pay_date: Date.new(2026, 9, 30),
+      gross_pay: 10_000,
+      deductions: 2_000,
+      net_pay: 8_000,
+      status: :paid
+    )
+    newer = create(
+      :payslip,
+      employee:,
+      payslip_number: "PS-NEWER",
+      period_start: Date.new(2026, 10, 1),
+      period_end: Date.new(2026, 10, 31),
+      pay_date: Date.new(2026, 10, 31),
+      gross_pay: 10_000,
+      deductions: 1_500,
+      net_pay: 8_500,
+      status: :issued
+    )
+
+    get api_v1_employee_path(employee), headers: auth_headers_for(admin)
+
+    expect(response).to have_http_status(:ok)
+    payslips = response.parsed_body["employee"]["payslips"]
+    expect(payslips.map { |payslip| payslip["id"] }).to eq([ newer.id, older.id ])
+    expect(payslips.first).to include(
+      "employee_id" => employee.id,
+      "payslip_number" => "PS-NEWER",
+      "period_start" => "2026-10-01",
+      "period_end" => "2026-10-31",
+      "pay_date" => "2026-10-31",
+      "gross_pay" => "10000.0000",
+      "deductions" => "1500.0000",
+      "net_pay" => "8500.0000",
+      "status" => "issued",
+      "currency" => hash_including("code" => "USD")
+    )
+
+    get api_v1_employees_path, params: { search: "Paid" }, headers: auth_headers_for(admin)
+
+    listed = response.parsed_body["employees"].find { |row| row["id"] == employee.id }
+    expect(listed["payslips"].map { |payslip| payslip["id"] }).to eq([ newer.id, older.id ])
+  end
+
   it "includes the manager on the employee payload" do
     manager = create_paid_employee(country: united_states, job_title: engineer, salary: 140_000, first_name: "Lin", last_name: "Manager")
     employee = create_paid_employee(

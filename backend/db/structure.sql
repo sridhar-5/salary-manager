@@ -19,6 +19,17 @@ CREATE TYPE public.employment_status AS ENUM (
 );
 
 
+--
+-- Name: payslip_status; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.payslip_status AS ENUM (
+    'issued',
+    'paid',
+    'void'
+);
+
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -480,6 +491,59 @@ ALTER SEQUENCE public.jwt_denylist_id_seq OWNED BY public.jwt_denylist.id;
 
 
 --
+-- Name: payslips; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.payslips (
+    id bigint NOT NULL,
+    employee_id bigint NOT NULL,
+    currency_id bigint NOT NULL,
+    payslip_number character varying(64) NOT NULL,
+    period_start date NOT NULL,
+    period_end date NOT NULL,
+    pay_date date NOT NULL,
+    gross_pay numeric(19,4) NOT NULL,
+    deductions numeric(19,4) DEFAULT 0.0 NOT NULL,
+    net_pay numeric(19,4) NOT NULL,
+    status public.payslip_status DEFAULT 'issued'::public.payslip_status NOT NULL,
+    created_at timestamp(6) without time zone NOT NULL,
+    updated_at timestamp(6) without time zone NOT NULL,
+    CONSTRAINT payslips_deductions_non_negative CHECK ((deductions >= (0)::numeric)),
+    CONSTRAINT payslips_gross_pay_positive CHECK ((gross_pay > (0)::numeric)),
+    CONSTRAINT payslips_net_equals_gross_minus_deductions CHECK ((net_pay = (gross_pay - deductions))),
+    CONSTRAINT payslips_net_pay_non_negative CHECK ((net_pay >= (0)::numeric)),
+    CONSTRAINT payslips_pay_date_on_or_after_period_start CHECK ((pay_date >= period_start)),
+    CONSTRAINT payslips_period_range CHECK ((period_end >= period_start))
+);
+
+
+--
+-- Name: TABLE payslips; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.payslips IS 'Payroll statements issued to an employee for a pay period.';
+
+
+--
+-- Name: payslips_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.payslips_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: payslips_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.payslips_id_seq OWNED BY public.payslips.id;
+
+
+--
 -- Name: roles; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -579,10 +643,18 @@ CREATE TABLE public.versions (
     item_id bigint NOT NULL,
     event character varying NOT NULL,
     whodunnit character varying,
+    user_id bigint,
     object jsonb,
     object_changes jsonb,
     created_at timestamp(6) without time zone
 );
+
+
+--
+-- Name: COLUMN versions.user_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.versions.user_id IS 'FK to Devise users.id';
 
 
 --
@@ -686,6 +758,13 @@ ALTER TABLE ONLY public.job_titles ALTER COLUMN id SET DEFAULT nextval('public.j
 --
 
 ALTER TABLE ONLY public.jwt_denylist ALTER COLUMN id SET DEFAULT nextval('public.jwt_denylist_id_seq'::regclass);
+
+
+--
+-- Name: payslips id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payslips ALTER COLUMN id SET DEFAULT nextval('public.payslips_id_seq'::regclass);
 
 
 --
@@ -811,6 +890,14 @@ ALTER TABLE ONLY public.job_titles
 
 ALTER TABLE ONLY public.jwt_denylist
     ADD CONSTRAINT jwt_denylist_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: payslips payslips_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payslips
+    ADD CONSTRAINT payslips_pkey PRIMARY KEY (id);
 
 
 --
@@ -1049,6 +1136,34 @@ CREATE UNIQUE INDEX index_jwt_denylist_on_jti ON public.jwt_denylist USING btree
 
 
 --
+-- Name: index_payslips_on_currency_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_payslips_on_currency_id ON public.payslips USING btree (currency_id);
+
+
+--
+-- Name: index_payslips_on_employee_id_and_pay_date; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX index_payslips_on_employee_id_and_pay_date ON public.payslips USING btree (employee_id, pay_date);
+
+
+--
+-- Name: index_payslips_on_employee_id_and_period_start; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_payslips_on_employee_id_and_period_start ON public.payslips USING btree (employee_id, period_start);
+
+
+--
+-- Name: index_payslips_on_payslip_number; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX index_payslips_on_payslip_number ON public.payslips USING btree (payslip_number);
+
+
+--
 -- Name: index_roles_on_name; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1210,6 +1325,14 @@ ALTER TABLE ONLY public.countries
 
 
 --
+-- Name: payslips fk_rails_9474ec1495; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payslips
+    ADD CONSTRAINT fk_rails_9474ec1495 FOREIGN KEY (currency_id) REFERENCES public.currencies(id);
+
+
+--
 -- Name: employees fk_rails_95427cb122; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1231,6 +1354,14 @@ ALTER TABLE ONLY public.exchange_rates
 
 ALTER TABLE ONLY public.job_titles
     ADD CONSTRAINT fk_rails_a89cac1a3a FOREIGN KEY (department_id) REFERENCES public.departments(id);
+
+
+--
+-- Name: payslips fk_rails_c0e66eeaff; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payslips
+    ADD CONSTRAINT fk_rails_c0e66eeaff FOREIGN KEY (employee_id) REFERENCES public.employees(id);
 
 
 --
@@ -1272,6 +1403,7 @@ ALTER TABLE ONLY public.admin_user_roles
 SET search_path TO "$user", public;
 
 INSERT INTO "schema_migrations" (version) VALUES
+('20261101120000'),
 ('20261031120003'),
 ('20261031120002'),
 ('20261031120001'),

@@ -13,6 +13,7 @@ class AdminUserAbility
   OPERATIONAL_MODELS = [
     Employee,
     CompensationRecord,
+    Payslip,
     SalaryBand,
     ExchangeRate
   ].freeze
