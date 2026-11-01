@@ -1,19 +1,30 @@
-export function formatMoney(amount: string | number | null | undefined, currency?: string | null) {
+export function formatMoney(
+  amount: string | number | null | undefined,
+  currency?: string | null,
+  fractionDigits = 0,
+) {
   if (amount == null || amount === "") return "—";
   const value = Number(amount);
   if (!Number.isFinite(value)) return "—";
   if (!currency) {
-    return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    return value.toLocaleString(undefined, {
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    });
   }
 
   try {
     return new Intl.NumberFormat(undefined, {
       style: "currency",
       currency,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
     }).format(value);
   } catch {
-    return `${value.toLocaleString(undefined, { maximumFractionDigits: 0 })} ${currency}`;
+    return `${value.toLocaleString(undefined, {
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    })} ${currency}`;
   }
 }
 

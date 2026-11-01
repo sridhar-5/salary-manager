@@ -1,10 +1,12 @@
 import {
   Accordion,
+  Badge,
   Button,
   Group,
   Modal,
   SimpleGrid,
   Stack,
+  Table,
   Text,
   TextInput,
   Title,
@@ -16,7 +18,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { api, errorMessage, fieldErrors } from "../api/client";
-import type { CompensationRecord, Employee } from "../api/types";
+import type { CompensationRecord, Employee, Payslip, PayslipStatus } from "../api/types";
 import { canManageOperations } from "../auth/roles";
 import { useAuth } from "../auth/AuthContext";
 import { employeeName, formatDate, formatDateTime, formatMoney } from "../components/format";
@@ -106,6 +108,7 @@ export function EmployeePage() {
                 }
               />
             </SimpleGrid>
+            <Payslips payslips={employee.payslips} />
           </>
         )}
       </QueryState>
@@ -176,6 +179,61 @@ export function EmployeePage() {
           refresh();
         }}
       />
+    </Stack>
+  );
+}
+
+const PAYSLIP_STATUS_COLOR: Record<PayslipStatus, string> = {
+  issued: "blue",
+  paid: "teal",
+  void: "gray",
+};
+
+function Payslips({ payslips }: { payslips: Payslip[] }) {
+  return (
+    <Stack gap="xs">
+      <Title order={3}>Payslips</Title>
+      <Text c="dimmed" size="sm">
+        Monthly statements for this employee, newest first. Amounts are in the employee’s local currency.
+      </Text>
+      {payslips.length === 0 ? (
+        <Text c="dimmed">No payslips yet.</Text>
+      ) : (
+        <Table.ScrollContainer minWidth={860}>
+          <Table striped highlightOnHover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Payslip</Table.Th>
+                <Table.Th>Period</Table.Th>
+                <Table.Th>Pay date</Table.Th>
+                <Table.Th>Gross</Table.Th>
+                <Table.Th>Deductions</Table.Th>
+                <Table.Th>Net</Table.Th>
+                <Table.Th>Status</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {payslips.map((payslip) => (
+                <Table.Tr key={payslip.id}>
+                  <Table.Td>{payslip.payslip_number}</Table.Td>
+                  <Table.Td>
+                    {formatDate(payslip.period_start)} – {formatDate(payslip.period_end)}
+                  </Table.Td>
+                  <Table.Td>{formatDate(payslip.pay_date)}</Table.Td>
+                  <Table.Td>{formatMoney(payslip.gross_pay, payslip.currency.code, 2)}</Table.Td>
+                  <Table.Td>{formatMoney(payslip.deductions, payslip.currency.code, 2)}</Table.Td>
+                  <Table.Td>{formatMoney(payslip.net_pay, payslip.currency.code, 2)}</Table.Td>
+                  <Table.Td>
+                    <Badge color={PAYSLIP_STATUS_COLOR[payslip.status]} variant="light">
+                      {payslip.status}
+                    </Badge>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      )}
     </Stack>
   );
 }

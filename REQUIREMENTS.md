@@ -28,7 +28,7 @@ The platform replaces spreadsheet-based workflows with a centralized, searchable
 
 ### Deliberately Out of Scope
 - **Spreadsheet/CSV import:** The application will be populated through a repeatable seed script, as data ingestion is not a priority for this assignment.
-- **Payroll processing and payments:** No payslip generation, tax calculations, deductions, or bank transfers; these require a separate payroll system.
+- **Payroll Processing specifics:** country specific tax calculations / deductions, or bank transfers; these require a separate payroll system.
 - **Recruitment and performance management:** Hiring pipelines, reviews, promotions workflows, and employee self-service are outside the core compensation use case.
 - **Complex global compensation rules:** No automated tax, benefits, or statutory payroll calculations for individual countries.
 - **Compensation Insights and Dashboard:**

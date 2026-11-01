@@ -30,6 +30,24 @@ export type JobTitleLevel = {
 
 export type AdminUser = { id: number; email: string; roles: string[] };
 
+export type PayslipStatus = "issued" | "paid" | "void";
+
+export type Payslip = {
+  id: number;
+  employee_id: number;
+  payslip_number: string;
+  period_start: string;
+  period_end: string;
+  pay_date: string;
+  gross_pay: string;
+  deductions: string;
+  net_pay: string;
+  status: PayslipStatus;
+  currency: { id: number; code: string; name: string };
+  created_at: string;
+  updated_at: string;
+};
+
 export type CurrentCompensation = {
   id: number;
   annual_salary: string;
@@ -59,6 +77,7 @@ export type Employee = {
   job_title: { id: number; title: string };
   employment_level: { id: number; name: string; rank: number };
   current_compensation: CurrentCompensation | null;
+  payslips: Payslip[];
   manager?: {
     id: number;
     first_name: string;
