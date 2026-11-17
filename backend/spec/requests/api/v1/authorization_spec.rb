@@ -10,6 +10,7 @@ RSpec.describe "Domain authorization", type: :request do
   end
 
   it "lets a viewer read employees and forbids creating them" do
+    create(:currency, :dollar)
     create(:employee)
 
     get api_v1_employees_path, params: { page: 1 }, headers: auth_headers_for(viewer)
@@ -21,6 +22,7 @@ RSpec.describe "Domain authorization", type: :request do
   end
 
   it "lets a compensation admin create an employee but not a country" do
+    create(:currency, :dollar)
     country = create(:country)
     department = create(:department)
     job_title = create(:job_title, department:)

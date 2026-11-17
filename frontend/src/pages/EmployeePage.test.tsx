@@ -3,7 +3,7 @@ import { Route, Routes } from "react-router";
 import { api } from "../api/client";
 import { resetAuth } from "../test/authState";
 import { compensationRecord, employee, payslip } from "../test/fixtures";
-import { formatMoney } from "../components/format";
+import { formatMoney, usdSalary } from "../components/format";
 import { renderWithProviders } from "../test/render";
 import { EmployeePage } from "./EmployeePage";
 
@@ -44,15 +44,16 @@ beforeEach(() => {
 
 describe("EmployeePage", () => {
   it("shows the profile, payslip, and compensation audit", async () => {
-    const { user } = renderEmployee("/employees/5?reporting_currency_id=1&page=2");
+    const { user } = renderEmployee("/employees/5?page=2");
+    const person = employee({ payslips: [payslip()] });
 
     expect(await screen.findByRole("heading", { name: "Ada Lovelace" })).toBeInTheDocument();
     expect(screen.getByText("E-0005 · ada@example.com")).toBeInTheDocument();
     expect(screen.getByText("India (IN)")).toBeInTheDocument();
     expect(screen.getByText("2020-01-15")).toBeInTheDocument();
     expect(screen.getByText(formatMoney("120000", "INR"))).toBeInTheDocument();
-    expect(screen.getByText(formatMoney("1500", "USD"))).toBeInTheDocument();
-    expect(api).toHaveBeenCalledWith("/api/v1/employees/5?reporting_currency_id=1");
+    expect(screen.getByText(usdSalary(person.current_compensation))).toBeInTheDocument();
+    expect(api).toHaveBeenCalledWith("/api/v1/employees/5");
 
     expect(screen.getByText("PS-7")).toBeInTheDocument();
     expect(screen.getByText("2024-01-01 – 2024-01-31")).toBeInTheDocument();

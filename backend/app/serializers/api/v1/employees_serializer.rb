@@ -1,8 +1,9 @@
 module API
   module V1
     class EmployeesSerializer
-      def initialize(employee)
+      def initialize(employee, usd_rates:)
         @employee = employee
+        @usd_rates = usd_rates
       end
 
       def serialize
@@ -22,7 +23,7 @@ module API
           manager_id: employee.manager_id,
           created_at: employee.created_at,
           updated_at: employee.updated_at,
-          reporting_currency: reporting_currency_payload,
+          reporting_currency: MoneyFormat.currency(Currency.usd),
           country: {
             id: employee.country_id,
             name: employee.country.name,
@@ -43,7 +44,7 @@ module API
 
       private
 
-      attr_reader :employee
+      attr_reader :employee, :usd_rates
 
       def compensation_json
         record = current_compensation_record
@@ -58,8 +59,20 @@ module API
           },
           effective_from: record.effective_from,
           effective_to: record.effective_to,
-          reporting_amount: MoneyFormat.format_money(converted_amount(record))
+          usd_rate: usd_rate_for(record)
         }
+      end
+
+      def usd_rate_for(record)
+        return format_rate(1) if record.currency_id == Currency.usd.id
+
+        format_rate(usd_rates[record.currency_id])
+      end
+
+      def format_rate(rate)
+        return nil if rate.nil?
+
+        format("%.10f", BigDecimal(rate.to_s))
       end
 
       def payslips_json
@@ -75,53 +88,16 @@ module API
       end
 
       def current_compensation_record
-        employee.compensation_records
-          .covering(Date.current)
-          .includes(:currency)
-          .order(effective_from: :desc, id: :desc)
-          .first
+        records = if employee.compensation_records.loaded?
+          employee.compensation_records.select { |record| covers_today?(record) }
+        else
+          employee.compensation_records.covering(Date.current).includes(:currency)
+        end
+        records.max_by { |record| [ record.effective_from, record.id ] }
       end
 
-      def converted_amount(record)
-        currency = default_reporting_currency
-        return nil if currency.blank?
-        return record.annual_salary if record.currency_id == currency.id
-
-        rate = exchange_multiplier(record.currency_id, currency.id)
-        return nil if rate.nil?
-
-        (record.annual_salary * rate).round(4)
-      end
-
-      def exchange_multiplier(from_id, to_id)
-        direct = ExchangeRate.where(base_currency_id: from_id, quote_currency_id: to_id)
-          .where(effective_date: ..Date.current)
-          .order(effective_date: :desc, id: :desc)
-          .pick(:rate)
-        return direct if direct
-
-        inverse = ExchangeRate.where(base_currency_id: to_id, quote_currency_id: from_id)
-          .where(effective_date: ..Date.current)
-          .order(effective_date: :desc, id: :desc)
-          .pick(:rate)
-        return nil if inverse.nil? || inverse.zero?
-
-        1 / inverse
-      end
-
-      def reporting_currency_payload
-        record = current_compensation_record
-        {
-          id: record.currency_id,
-          code: record.currency&.code,
-          name: record.currency&.name
-        } if record
-
-        MoneyFormat.currency(default_reporting_currency)
-      end
-
-      def default_reporting_currency
-        @default_reporting_currency ||= Currency.find_by(code: "USD") || Currency.order(:id).first
+      def covers_today?(record)
+        record.effective_from <= Date.current && (record.effective_to.nil? || record.effective_to >= Date.current)
       end
 
       def manager_json

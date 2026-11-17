@@ -20,4 +20,8 @@ class Currency < ApplicationRecord
 
   validates :code, presence: true, uniqueness: true, length: { is: 3 }
   validates :name, presence: true, length: { maximum: 100 }
+
+  def self.usd
+    find_by!(code: "USD")
+  end
 end

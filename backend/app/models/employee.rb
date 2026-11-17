@@ -55,6 +55,28 @@ class Employee < ApplicationRecord
 
   EMPLOYMENT_STATUSES = %w[active terminated].freeze
 
+  scope :search, ->(query) {
+    next all if query.blank?
+
+    like = "%#{sanitize_sql_like(query)}%"
+    full_name = Arel::Nodes::InfixOperation.new(
+      "||",
+      Arel::Nodes::InfixOperation.new("||", arel_table[:first_name], Arel::Nodes.build_quoted(" ")),
+      arel_table[:last_name]
+    )
+    where(
+      arel_table[:first_name].matches(like, nil, false)
+        .or(arel_table[:last_name].matches(like, nil, false))
+        .or(arel_table[:employee_number].matches(like, nil, false))
+        .or(full_name.matches(like, nil, false))
+    )
+  }
+  scope :in_country, ->(id) { where(country_id: id) if id.present? }
+  scope :in_department, ->(id) { where(department_id: id) if id.present? }
+  scope :with_job_title, ->(id) { where(job_title_id: id) if id.present? }
+  scope :at_level, ->(id) { where(employment_level_id: id) if id.present? }
+  scope :with_status, ->(status) { where(employment_status: status) if EMPLOYMENT_STATUSES.include?(status.to_s) }
+
   validates :employee_number, presence: true, uniqueness: true, length: { maximum: 50 }
   validates :first_name, presence: true, length: { maximum: 100 }
   validates :last_name, presence: true, length: { maximum: 100 }

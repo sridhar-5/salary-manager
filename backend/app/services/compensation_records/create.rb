@@ -27,8 +27,8 @@ module CompensationRecords
 
     def close_previous_open_records
       record.employee.compensation_records
-        .where("effective_from < ?", record.effective_from)
-        .where("effective_to IS NULL OR effective_to >= ?", record.effective_from)
+        .where(effective_from: ...record.effective_from)
+        .merge(CompensationRecord.covering(record.effective_from))
         .find_each do |previous|
           previous.update!(effective_to: record.effective_from - 1.day)
         end

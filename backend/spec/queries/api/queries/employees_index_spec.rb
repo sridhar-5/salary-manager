@@ -49,6 +49,36 @@ RSpec.describe API::Queries::EmployeesIndex do
       end
     end
 
+    context "with a name search" do
+      let(:params) { { search: "Grace Hopper" } }
+
+      it "returns the matching employee" do
+        matching = create(
+          :employee,
+          country: united_states,
+          job_title: engineer,
+          department: engineering,
+          employment_level: senior,
+          first_name: "Grace",
+          last_name: "Hopper"
+        )
+        create_paid_employee(job_title: engineer, salary: 90_000, last_name: "Other")
+
+        expect(subject).to match_array([ matching ])
+      end
+    end
+
+    context "with a country and department filter" do
+      let(:params) { { filters: { with_country_id: united_states.id, with_department_id: finance.id } } }
+
+      it "returns employees in that country and department" do
+        matching = create_paid_employee(job_title: analyst, salary: 100_000, last_name: "Finance")
+        create_paid_employee(job_title: engineer, salary: 100_000, last_name: "Engineering")
+
+        expect(subject).to match_array([ matching ])
+      end
+    end
+
     context "with pagination" do
       let(:params) { { page: 2, limit: 1 } }
 

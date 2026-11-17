@@ -29,6 +29,25 @@ class ExchangeRate < ApplicationRecord
   validates :effective_date, presence: true
   validates :quote_currency_id, uniqueness: { scope: [ :base_currency_id, :effective_date ] }
 
+  def self.latest_usd_quotes(on = Date.current)
+    usd_id = Currency.usd.id
+    newest = where(base_currency_id: usd_id, effective_date: ..on)
+      .group(:quote_currency_id)
+      .select(:quote_currency_id, "MAX(exchange_rates.effective_date) AS effective_date")
+
+    where(base_currency_id: usd_id).joins(<<~SQL.squish)
+      INNER JOIN (#{newest.to_sql}) latest_rates
+        ON latest_rates.quote_currency_id = exchange_rates.quote_currency_id
+       AND latest_rates.effective_date = exchange_rates.effective_date
+    SQL
+  end
+
+  def self.rates_by_quote_currency(on = Date.current)
+    latest_usd_quotes(on).each_with_object({}) do |rate, rates|
+      rates[rate.quote_currency_id] = rate.rate
+    end
+  end
+
   validate :currencies_must_differ
 
   private

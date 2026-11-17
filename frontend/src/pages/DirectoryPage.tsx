@@ -6,7 +6,7 @@ import type { DirectoryResponse } from "../api/types";
 import { canManageOperations } from "../auth/roles";
 import { useAuth } from "../auth/AuthContext";
 import { CompensationFilters } from "../components/CompensationFilters";
-import { employeeName, formatMoney } from "../components/format";
+import { employeeName, formatMoney, usdSalary } from "../components/format";
 import { QueryState } from "../components/QueryState";
 
 export function DirectoryPage() {
@@ -17,7 +17,6 @@ export function DirectoryPage() {
     queryFn: () => api<DirectoryResponse>(`/api/v1/employees?${params.toString()}`),
   });
   const meta = query.data?.meta;
-  const currency = meta?.reporting_currency?.code;
   const canWrite = canManageOperations(admin?.roles ?? []);
   const start = meta && meta.total_count > 0 ? (meta.page - 1) * meta.per_page + 1 : 0;
   const end = meta ? Math.min(meta.page * meta.per_page, meta.total_count) : 0;
@@ -27,7 +26,7 @@ export function DirectoryPage() {
       <Group justify="space-between">
         <div>
           <Title order={2}>Directory</Title>
-          <Text c="dimmed">Search employees and compare local pay with the reporting currency.</Text>
+          <Text c="dimmed">Search employees and compare local pay with USD.</Text>
         </div>
         {canWrite && (
           <Button component={Link} to="/employees/new">
@@ -45,11 +44,7 @@ export function DirectoryPage() {
         {meta && (
           <Text size="sm" c="dimmed">
             Showing {start.toLocaleString()}–{end.toLocaleString()} of {meta.total_count.toLocaleString()}.
-            Local salary is the employee’s currency
-            {currency ? `, and the reporting column is ${currency}` : ""}.
-            {meta.unconverted_count > 0
-              ? ` ${meta.unconverted_count.toLocaleString()} employees in the unfiltered salary set have no exchange rate.`
-              : ""}
+            Local salary stays in the employee’s currency. USD is that salary divided by the USD rate.
           </Text>
         )}
         <Table.ScrollContainer minWidth={980}>
@@ -63,7 +58,7 @@ export function DirectoryPage() {
                 <Table.Th>Country</Table.Th>
                 <Table.Th>Status</Table.Th>
                 <Table.Th>Local salary</Table.Th>
-                <Table.Th>Reporting salary</Table.Th>
+                <Table.Th>USD salary</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -91,13 +86,7 @@ export function DirectoryPage() {
                     <Table.Td>
                       {pay ? formatMoney(pay.annual_salary, pay.currency.code) : "No current salary"}
                     </Table.Td>
-                    <Table.Td>
-                      {pay?.reporting_amount
-                        ? formatMoney(pay.reporting_amount, currency)
-                        : pay
-                          ? "No rate"
-                          : "—"}
-                    </Table.Td>
+                    <Table.Td>{usdSalary(pay)}</Table.Td>
                   </Table.Tr>
                 );
               })}

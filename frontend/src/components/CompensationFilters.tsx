@@ -1,4 +1,4 @@
-import { Group, NumberInput, Select, TextInput } from "@mantine/core";
+import { Group, Select, TextInput } from "@mantine/core";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useCatalogs } from "../hooks/useCatalogs";
@@ -106,33 +106,6 @@ export function CompensationFilters() {
         ]}
         value={params.get("filters[with_employment_status]")}
         onChange={(value) => update("filters[with_employment_status]", value ?? "")}
-      />
-      <Select
-        label="Reporting currency"
-        placeholder="Default (USD)"
-        clearable
-        data={catalogs.currencies.map((currency) => ({
-          value: String(currency.id),
-          label: `${currency.code} · ${currency.name}`,
-        }))}
-        value={params.get("filters[with_reporting_currency_id]")}
-        onChange={(value) => update("filters[with_reporting_currency_id]", value ?? "")}
-      />
-      <NumberInput
-        label="Min salary"
-        placeholder="Reporting amount"
-        min={0}
-        hideControls
-        value={params.get("filters[with_salary_min]") ?? ""}
-        onChange={(value) => update("filters[with_salary_min]", value === "" ? "" : String(value))}
-      />
-      <NumberInput
-        label="Max salary"
-        placeholder="Reporting amount"
-        min={0}
-        hideControls
-        value={params.get("filters[with_salary_max]") ?? ""}
-        onChange={(value) => update("filters[with_salary_max]", value === "" ? "" : String(value))}
       />
     </Group>
   );

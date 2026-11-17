@@ -16,26 +16,24 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { api, errorMessage, fieldErrors } from "../api/client";
 import type { CompensationRecord, Employee, Payslip, PayslipStatus } from "../api/types";
 import { canManageOperations } from "../auth/roles";
 import { useAuth } from "../auth/AuthContext";
-import { employeeName, formatDate, formatDateTime, formatMoney } from "../components/format";
+import { employeeName, formatDate, formatDateTime, formatMoney, usdSalary } from "../components/format";
 import { QueryState } from "../components/QueryState";
-import { analyticsSearch } from "../hooks/useCatalogs";
 
 export function EmployeePage() {
   const { id } = useParams();
   const { admin } = useAuth();
-  const [params] = useSearchParams();
   const queryClient = useQueryClient();
   const canWrite = canManageOperations(admin?.roles ?? []);
   const [salaryOpened, { open: openSalary, close: closeSalary }] = useDisclosure(false);
   const [editingRecord, setEditingRecord] = useState<CompensationRecord | null>(null);
   const employeeQuery = useQuery({
-    queryKey: ["employee", id, params.get("reporting_currency_id")],
-    queryFn: () => api<{ employee: Employee }>(`/api/v1/employees/${id}${analyticsSearch(params)}`),
+    queryKey: ["employee", id],
+    queryFn: () => api<{ employee: Employee }>(`/api/v1/employees/${id}`),
   });
   const historyQuery = useQuery({
     queryKey: ["compensation", id],
@@ -43,7 +41,6 @@ export function EmployeePage() {
       api<{ compensation_records: CompensationRecord[] }>(`/api/v1/employees/${id}/compensation_records`),
   });
   const employee = employeeQuery.data?.employee;
-  const reportingCode = employee?.reporting_currency?.code;
 
   function refresh() {
     queryClient.invalidateQueries({ queryKey: ["employee", id] });
@@ -97,16 +94,7 @@ export function EmployeePage() {
                     : "No current salary"
                 }
               />
-              <Detail
-                label={`Current reporting salary${reportingCode ? ` (${reportingCode})` : ""}`}
-                value={
-                  employee.current_compensation?.reporting_amount
-                    ? formatMoney(employee.current_compensation.reporting_amount, reportingCode)
-                    : employee.current_compensation
-                      ? "No exchange rate"
-                      : "—"
-                }
-              />
+              <Detail label="Current USD salary" value={usdSalary(employee.current_compensation)} />
             </SimpleGrid>
             <Payslips payslips={employee.payslips} />
           </>

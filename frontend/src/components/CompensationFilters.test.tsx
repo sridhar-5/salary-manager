@@ -114,16 +114,14 @@ describe("CompensationFilters", () => {
     expect(query().get("filters[with_employment_level_id]")).toBeNull();
   });
 
-  it("records the salary bounds and status", async () => {
+  it("records the status filter", async () => {
     const { user } = renderFilters("/directory");
 
-    await user.type(screen.getByLabelText("Min salary"), "80000");
-    await user.type(screen.getByLabelText("Max salary"), "150000");
     await user.click(screen.getByRole("combobox", { name: "Status" }));
     await user.click(await screen.findByRole("option", { name: "Active" }));
 
-    await vi.waitFor(() => expect(query().get("filters[with_salary_min]")).toBe("80000"));
-    expect(query().get("filters[with_salary_max]")).toBe("150000");
-    expect(query().get("filters[with_employment_status]")).toBe("active");
+    await vi.waitFor(() => expect(query().get("filters[with_employment_status]")).toBe("active"));
+    expect(screen.queryByLabelText("Min salary")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Reporting currency")).not.toBeInTheDocument();
   });
 });

@@ -78,7 +78,7 @@ export function employee(overrides: Partial<Employee> = {}): Employee {
       currency: { id: 2, code: "INR" },
       effective_from: "2024-01-01",
       effective_to: null,
-      reporting_amount: "1500",
+      usd_rate: "80",
     },
     payslips: [],
     manager: null,

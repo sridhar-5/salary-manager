@@ -17,14 +17,14 @@ Each item below is marked with what the current app does.
 ### 1. Employee Directory and Search
 
 - **Implemented.** The directory lists the seeded employees in a paginated, searchable table.
-- **Implemented.** Search by employee name or employee number. Filter by country, department, job title, level, employment status, and salary range. A reporting currency can be chosen so local pay and converted pay stay distinct.
+- **Implemented.** Search by employee name or employee number. Filter by country, department, job title, level, and employment status. The directory sends each employee's native salary and a `usd_rate` (how many units of the pay currency equal 1 USD). The client divides the salary by that rate. A salary range is applied on the client to the rows already loaded.
 - **Implemented.** An employee profile shows organization, location, currency, current salary, compensation history, and payslips.
 
 ### 2. Salary Management
 
 - **Implemented.** HR can create an employee and update their record. A new salary is stored as its own compensation record and closes the previous open record. The end date of an existing record can be edited.
 - **Implemented for seeded history.** Each employee profile lists monthly payslips (number, period, pay date, gross, deductions, net, and status). The seed creates the last six months of payslips. Choosing a month and generating a new payslip from the app is not built.
-- **Implemented.** Salaries stay in the employee country's currency. The directory and profile also show the amount in the selected reporting currency, or say when no exchange rate exists.
+- **Implemented.** Salaries stay in the employee country's currency. The directory and profile send `usd_rate` for that currency, or `null` when no USD rate exists. They do not send a converted amount.
 - **Implemented.** Compensation records keep effective dates. The profile shows an audit trail of changes: the event, previous and new values, timestamp, and the user responsible.
 - **Implemented.** Salary and employee forms reject incomplete or invalid input. The API returns field errors, and the database enforces constraints.
 
@@ -43,7 +43,7 @@ Each item below is marked with what the current app does.
 These screens support the compensation workflow:
 
 - **Salary bands.** Acceptable pay ranges for a country, department, title, and level, with effective dates.
-- **Exchange rates.** Rates used to convert local salary into the reporting currency.
+- **Exchange rates.** USD is the base currency. Each rate is 1 USD in a pay currency. The client uses that rate to convert a local salary. Rates stored in the other direction are not used for display.
 - **Reference data.** Super admins can maintain currencies, countries, departments, job titles, levels, and which levels apply to each title.
 - **Account.** A signed-in user can change their password.
 

@@ -1,178 +1,82 @@
 module API
   module Queries
-    class EmployeesIndex
-      DEFAULT_LIMIT = 10
-      DEFAULT_PAGE = 1
+    class EmployeesIndex < Base
       PRELOADS = [
         :country,
         :department,
         :job_title,
         :employment_level,
         :manager,
-        { payslips: :currency }
+        { payslips: :currency },
+        { compensation_records: :currency }
       ].freeze
 
-      attr_reader :records, :unconverted_count
-
       def initialize(params, ability:)
-        @params = params
         @ability = ability
-        @page = params[:page].present? ? params[:page].to_i : DEFAULT_PAGE
-        @limit = params[:limit].present? ? params[:limit].to_i : DEFAULT_LIMIT
-        @search = params[:search].to_s.strip
-        @filters = (params[:filters] || {}).to_h.symbolize_keys
+        super(params)
       end
 
-      def call
-        relation = Employee.accessible_by(@ability)
-        relation = apply_search(relation)
-        relation = apply_attribute_filters(relation)
-        relation = with_reporting_pay(relation)
-        @unconverted_count = relation.where("reporting_amount IS NULL").count
-        relation = apply_salary_filters(relation)
-        @records = relation.order(last_name: :asc, first_name: :asc, id: :asc).preload(*PRELOADS).page(@page).per(@limit)
-        self
-      end
-
-      def reporting_currency
-        @reporting_currency ||= self.class.reporting_currency_for(@params)
-      end
-
-      def self.reporting_currency_for(params)
-        filters = (params[:filters] || {}).to_h.symbolize_keys
-        if (identifier = integer_identifier(filters[:with_reporting_currency_id]))
-          found = Currency.find_by(id: identifier)
-          return found if found
-        end
-
-        Currency.find_by(code: "USD") || Currency.order(:id).first
-      end
-
-      def self.integer_identifier(value)
-        return nil if value.blank?
-
-        Integer(value, 10)
-      rescue ArgumentError, TypeError
-        nil
+      def usd_rates
+        @usd_rates ||= ExchangeRate.rates_by_quote_currency
       end
 
       private
 
-      def apply_search(relation)
-        return relation if @search.blank?
-
-        like = "%#{Employee.sanitize_sql_like(@search)}%"
-        relation.where(
-          <<~SQL.squish,
-            employees.first_name ILIKE :term
-            OR employees.last_name ILIKE :term
-            OR employees.employee_number ILIKE :term
-            OR (employees.first_name || ' ' || employees.last_name) ILIKE :term
-          SQL
-          term: like
-        )
+      def default_scope
+        Employee.accessible_by(@ability)
       end
 
-      def apply_attribute_filters(relation)
-        relation = filter_id(relation, :country_id, @filters[:with_country_id])
-        relation = filter_id(relation, :department_id, @filters[:with_department_id])
-        relation = filter_id(relation, :job_title_id, @filters[:with_job_title_id])
-        relation = filter_id(relation, :employment_level_id, @filters[:with_employment_level_id])
-        filter_status(relation)
+      def sort_records
+        @scope = scope.order(last_name: :asc, first_name: :asc, id: :asc)
       end
 
-      def filter_id(relation, column, value)
-        identifier = self.class.integer_identifier(value)
-        return relation if identifier.nil?
-
-        relation.where(column => identifier)
+      def filter_records
+        apply_search_filter
+        apply_country_filter
+        apply_department_filter
+        apply_job_title_filter
+        apply_level_filter
+        apply_status_filter
       end
 
-      def filter_status(relation)
-        status = @filters[:with_employment_status].to_s
-        return relation unless Employee::EMPLOYMENT_STATUSES.include?(status)
-
-        relation.where(employment_status: status)
+      def paginate_records
+        @scope = scope.preload(*PRELOADS).page(page).per(limit)
       end
 
-      def apply_salary_filters(relation)
-        minimum = decimal_amount(@filters[:with_salary_min])
-        maximum = decimal_amount(@filters[:with_salary_max])
-        relation = relation.where("reporting_amount >= ?", minimum) if minimum
-        relation = relation.where("reporting_amount <= ?", maximum) if maximum
-        relation
+      def apply_search_filter
+        return if params[:search].blank?
+
+        @scope = scope.search(params[:search])
       end
 
-      def decimal_amount(value)
-        return nil if value.blank?
+      def apply_country_filter
+        return if filters[:with_country_id].blank?
 
-        decimal = BigDecimal(value.to_s)
-        decimal.finite? ? decimal : nil
-      rescue ArgumentError
-        nil
+        @scope = scope.in_country(filters[:with_country_id])
       end
 
-      def with_reporting_pay(relation, on: Date.current)
-        currency = reporting_currency
-        inner = relation.joins(reporting_pay_join(currency, on)).select(reporting_pay_columns(currency))
-        relation.unscope(:joins, :select).from(inner, :employees)
+      def apply_department_filter
+        return if filters[:with_department_id].blank?
+
+        @scope = scope.in_department(filters[:with_department_id])
       end
 
-      def reporting_pay_join(currency, on)
-        pay = CompensationRecord.latest_per_employee(on).to_sql
-        fx = sanitize_sql([ <<~SQL.squish, { reporting_currency_id: currency&.id, as_of: on } ])
-          LEFT JOIN LATERAL (
-            SELECT CASE
-              WHEN er.base_currency_id = current_pay.currency_id AND er.quote_currency_id = :reporting_currency_id THEN er.rate
-              WHEN er.base_currency_id = :reporting_currency_id AND er.quote_currency_id = current_pay.currency_id THEN (1::numeric / er.rate)
-            END AS multiplier
-            FROM exchange_rates er
-            WHERE current_pay.id IS NOT NULL
-              AND :reporting_currency_id IS NOT NULL
-              AND current_pay.currency_id <> :reporting_currency_id
-              AND er.effective_date <= :as_of
-              AND (
-                (er.base_currency_id = current_pay.currency_id AND er.quote_currency_id = :reporting_currency_id)
-                OR (er.base_currency_id = :reporting_currency_id AND er.quote_currency_id = current_pay.currency_id)
-              )
-            ORDER BY er.effective_date DESC, er.id DESC
-            LIMIT 1
-          ) fx ON TRUE
-        SQL
+      def apply_job_title_filter
+        return if filters[:with_job_title_id].blank?
 
-        "LEFT JOIN (#{pay}) current_pay ON current_pay.employee_id = employees.id #{fx}"
+        @scope = scope.with_job_title(filters[:with_job_title_id])
       end
 
-      def reporting_pay_columns(currency)
-        amount = sanitize_sql([ <<~SQL.squish, { reporting_currency_id: currency&.id } ])
-          CASE
-            WHEN current_pay.id IS NULL THEN NULL
-            WHEN current_pay.currency_id = :reporting_currency_id THEN current_pay.annual_salary
-            ELSE ROUND(current_pay.annual_salary * fx.multiplier, 4)
-          END AS reporting_amount
-        SQL
-        reporting_currency_columns = sanitize_sql([
-          "?::bigint AS reporting_currency_id, ?::varchar AS reporting_currency_code, ?::varchar AS reporting_currency_name",
-          currency&.id,
-          currency&.code,
-          currency&.name
-        ])
+      def apply_level_filter
+        return if filters[:with_employment_level_id].blank?
 
-        [
-          "employees.*",
-          "current_pay.id AS compensation_id",
-          "current_pay.annual_salary AS annual_salary",
-          "current_pay.currency_id AS compensation_currency_id",
-          "current_pay.currency_code AS currency_code",
-          "current_pay.effective_from AS compensation_effective_from",
-          "current_pay.effective_to AS compensation_effective_to",
-          amount,
-          reporting_currency_columns
-        ]
+        @scope = scope.at_level(filters[:with_employment_level_id])
       end
 
-      def sanitize_sql(array)
-        Employee.send(:sanitize_sql_array, array)
+      def apply_status_filter
+        return if filters[:with_employment_status].blank?
+
+        @scope = scope.with_status(filters[:with_employment_status])
       end
     end
   end

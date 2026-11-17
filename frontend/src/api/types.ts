@@ -54,7 +54,7 @@ export type CurrentCompensation = {
   currency: { id: number; code: string };
   effective_from: string;
   effective_to: string | null;
-  reporting_amount: string | null;
+  usd_rate: string | null;
 };
 
 export type Employee = {
@@ -94,7 +94,6 @@ export type DirectoryResponse = {
     total_count: number;
     total_pages: number;
     reporting_currency: Currency | null;
-    unconverted_count: number;
   };
 };
 

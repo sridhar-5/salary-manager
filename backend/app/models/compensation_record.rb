@@ -31,22 +31,9 @@ class CompensationRecord < ApplicationRecord
   has_paper_trail
 
   scope :covering, ->(date) {
-    where(effective_from: ..date)
-      .where("compensation_records.effective_to IS NULL OR compensation_records.effective_to >= ?", date)
-  }
-  scope :latest_per_employee, ->(date) {
-    covering(date)
-      .joins(:currency)
-      .select(
-        "DISTINCT ON (compensation_records.employee_id) compensation_records.employee_id",
-        "compensation_records.id",
-        "compensation_records.annual_salary",
-        "compensation_records.currency_id",
-        "currencies.code AS currency_code",
-        "compensation_records.effective_from",
-        "compensation_records.effective_to"
-      )
-      .order(Arel.sql("compensation_records.employee_id, compensation_records.effective_from DESC, compensation_records.id DESC"))
+    where(effective_from: ..date).and(
+      where(effective_to: nil).or(where(effective_to: date..))
+    )
   }
 
   belongs_to :employee

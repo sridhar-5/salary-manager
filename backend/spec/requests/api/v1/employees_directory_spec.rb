@@ -41,12 +41,19 @@ RSpec.describe "Employee directory", type: :request do
     expect(response).to have_http_status(:unauthorized)
   end
 
-  it "searches, filters, converts, and paginates employees" do
+  it "searches, filters, and paginates employees" do
     create(
       :exchange_rate,
       base_currency: inr,
       quote_currency: usd,
       rate: BigDecimal("0.012"),
+      effective_date: Date.current
+    )
+    create(
+      :exchange_rate,
+      base_currency: usd,
+      quote_currency: inr,
+      rate: BigDecimal("83"),
       effective_date: Date.current
     )
     matched = create_paid_employee(
@@ -74,32 +81,22 @@ RSpec.describe "Employee directory", type: :request do
     expect(body["employees"].first["id"]).to eq(matched.id)
     expect(body["employees"].first["country"]["iso_code"]).to eq("IN")
     expect(body["employees"].first["current_compensation"]["currency"]["code"]).to eq("INR")
-    expect(body["employees"].first["current_compensation"]["reporting_amount"].to_d).to eq(BigDecimal("9960"))
+    expect(body["employees"].first["current_compensation"]["usd_rate"].to_d).to eq(BigDecimal("83"))
+    expect(body["employees"].first["current_compensation"]).not_to have_key("reporting_amount")
     expect(body["meta"]).to include(
       "page" => 1,
       "per_page" => 1,
       "total_count" => 1,
       "reporting_currency" => hash_including("code" => "USD")
     )
-
-    get api_v1_employees_path,
-      params: {
-        filters: {
-          with_country_id: united_states.id,
-          with_department_id: finance.id,
-          with_salary_min: 100_000,
-          with_salary_max: 200_000
-        }
-      },
-      headers: auth_headers_for(admin)
-
-    salaries = response.parsed_body["employees"].map { |employee| employee["last_name"] }
-    expect(salaries).to eq([ "High" ])
+    expect(body["meta"]).not_to have_key("unconverted_count")
 
     get api_v1_employees_path, params: { filters: { with_employment_status: "active" } }, headers: auth_headers_for(admin)
 
+    rows = response.parsed_body["employees"]
     expect(response.parsed_body["meta"]["total_count"]).to eq(4)
-    expect(response.parsed_body["meta"]["unconverted_count"]).to eq(1)
+    expect(rows.find { |row| row["last_name"] == "Unconverted" }.dig("current_compensation", "usd_rate")).to be_nil
+    expect(rows.find { |row| row["last_name"] == "High" }.dig("current_compensation", "usd_rate").to_d).to eq(1)
   end
 
   it "returns the second page" do

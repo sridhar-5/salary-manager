@@ -4,7 +4,7 @@ import { api } from "../api/client";
 import type { DirectoryResponse, Employee } from "../api/types";
 import { resetAuth } from "../test/authState";
 import { catalogResponse, employee } from "../test/fixtures";
-import { formatMoney } from "../components/format";
+import { formatMoney, usdSalary } from "../components/format";
 import { renderWithProviders } from "../test/render";
 import { DirectoryPage } from "./DirectoryPage";
 
@@ -28,7 +28,6 @@ function directory(employees: Employee[], meta: Partial<DirectoryResponse["meta"
       total_count: employees.length,
       total_pages: 1,
       reporting_currency: { id: 1, code: "USD", name: "US Dollar" },
-      unconverted_count: 0,
       ...meta,
     },
   };
@@ -69,8 +68,8 @@ describe("DirectoryPage", () => {
     expect(row).toHaveTextContent("India");
     expect(row).toHaveTextContent("active");
     expect(row).toHaveTextContent(formatMoney(person.current_compensation?.annual_salary, "INR"));
-    expect(row).toHaveTextContent(formatMoney(person.current_compensation?.reporting_amount, "USD"));
-    expect(screen.getByText(/reporting column is USD/)).toBeInTheDocument();
+    expect(row).toHaveTextContent(usdSalary(person.current_compensation));
+    expect(screen.getByText(/USD is that salary divided by the USD rate/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Add employee" })).toHaveAttribute("href", "/employees/new");
 
     await user.click(screen.getByRole("link", { name: "Ada Lovelace" }));
@@ -94,11 +93,11 @@ describe("DirectoryPage", () => {
                 currency: { id: 2, code: "INR" },
                 effective_from: "2024-01-01",
                 effective_to: null,
-                reporting_amount: null,
+                usd_rate: null,
               },
             }),
           ],
-          { total_count: 2, per_page: 20, unconverted_count: 1 },
+          { total_count: 2, per_page: 20 },
         );
       }
       throw new Error(`Unhandled ${path}`);
@@ -107,7 +106,6 @@ describe("DirectoryPage", () => {
 
     expect(await screen.findByText("No current salary")).toBeInTheDocument();
     expect(screen.getByText("No rate")).toBeInTheDocument();
-    expect(screen.getByText(/1 employees in the unfiltered salary set have no exchange rate/)).toBeInTheDocument();
   });
 
   it("hides employee creation from people who cannot manage compensation", async () => {
