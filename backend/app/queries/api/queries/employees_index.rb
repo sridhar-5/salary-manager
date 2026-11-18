@@ -37,6 +37,7 @@ module API
         apply_job_title_filter
         apply_level_filter
         apply_status_filter
+        apply_min_salary_filter
       end
 
       def paginate_records
@@ -77,6 +78,12 @@ module API
         return if filters[:with_employment_status].blank?
 
         @scope = scope.with_status(filters[:with_employment_status])
+      end
+
+      def apply_min_salary_filter
+        return if filters[:min_salary].blank?
+
+        @scope = scope.joins(:compensation_records).where(compensation_records: { annual_salary: filters[:min_salary].., effective_to: nil, currency_id: Currency.usd.id })
       end
     end
   end

@@ -6,7 +6,8 @@ module API
       :with_job_title_id,
       :with_employment_level_id,
       :with_employment_status,
-      :search_query
+      :search_query,
+      :min_salary
     ].freeze
 
     def employee_search_params(require_page: false)

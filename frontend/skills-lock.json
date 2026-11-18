@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "skills": {
+    "react": {
+      "source": "PyModel/react-frontend-skills",
+      "commit": "85f6b473fa54e3df9276b1aa52470e2cecf86931",
+      "sourceType": "github",
+      "skillPath": "skills/react/SKILL.md",
+      "computedHash": "d18cff46b8581c0f261ec0255a39ef21457b88c7a4fdcf8222018b2d9917ad1b"
+    }
+  }
+}

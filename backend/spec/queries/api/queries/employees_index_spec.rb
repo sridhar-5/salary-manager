@@ -68,6 +68,43 @@ RSpec.describe API::Queries::EmployeesIndex do
       end
     end
 
+    context "with a minimum salary filter" do
+      let(:params) { { filters: { min_salary: 100_000 } } }
+
+      it "returns employees whose current salary is at or above the minimum" do
+        at_minimum = create_paid_employee(job_title: engineer, salary: 100_000, last_name: "At")
+        above = create_paid_employee(job_title: engineer, salary: 150_000, last_name: "Above")
+        create_paid_employee(job_title: engineer, salary: 99_999, last_name: "Below")
+
+        expect(subject).to match_array([ at_minimum, above ])
+      end
+
+      it "ignores closed compensation records" do
+        current_meets = create_paid_employee(job_title: engineer, salary: 110_000, last_name: "Current")
+        create(
+          :compensation_record,
+          employee: current_meets,
+          annual_salary: 50_000,
+          effective_from: Date.current - 40,
+          effective_to: Date.current - 11,
+          currency: usd,
+          created_by: admin
+        )
+        previously_higher = create_paid_employee(job_title: engineer, salary: 80_000, last_name: "Lowered")
+        create(
+          :compensation_record,
+          employee: previously_higher,
+          annual_salary: 200_000,
+          effective_from: Date.current - 40,
+          effective_to: Date.current - 11,
+          currency: usd,
+          created_by: admin
+        )
+
+        expect(subject).to match_array([ current_meets ])
+      end
+    end
+
     context "with a country and department filter" do
       let(:params) { { filters: { with_country_id: united_states.id, with_department_id: finance.id } } }
 
